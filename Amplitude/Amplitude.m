@@ -1217,10 +1217,13 @@ static NSString *const SEQUENCE_NUMBER = @"sequence_number";
         [self->_dbHelper insertOrReplaceKeyLongValue:PREVIOUS_SESSION_ID value:[NSNumber numberWithLongLong:self->_sessionId]];
         [self->_dbHelper insertOrReplaceKeyLongValue:PREVIOUS_SESSION_TIME value:[NSNumber numberWithLongLong:self->_lastEventTime]];
 
+#if !TARGET_OS_OSX
         [self endBackgroundTaskIfNeeded];
+#endif
     }];
 }
 
+#if !TARGET_OS_OSX
 - (void)endBackgroundTaskIfNeeded
 {
     UIApplication *app = [self getSharedApplication];
@@ -1232,6 +1235,7 @@ static NSString *const SEQUENCE_NUMBER = @"sequence_number";
         self->_uploadTaskID = UIBackgroundTaskInvalid;
     }
 }
+#endif
 
 #pragma mark - Sessions
 
