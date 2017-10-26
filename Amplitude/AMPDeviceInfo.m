@@ -1,12 +1,31 @@
 //
 //  AMPDeviceInfo.m
 
+#ifndef AMPLITUDE_DEBUG
+#define AMPLITUDE_DEBUG 0
+#endif
+
+#ifndef AMPLITUDE_LOG
+#if AMPLITUDE_DEBUG
+#   define AMPLITUDE_LOG(fmt, ...) NSLog(fmt, ##__VA_ARGS__)
+#else
+#   define AMPLITUDE_LOG(...)
+#endif
+#endif
+
 #import <Foundation/Foundation.h>
 #import "AMPARCMacros.h"
 #import "AMPDeviceInfo.h"
 #import "AMPUtils.h"
 #import "AMPConstants.h"
+
+#if TARGET_OS_OSX
+#import <Cocoa/Cocoa.h>
+#import <net/if.h>
+#import <net/if_dl.h>
+#else
 #import <UIKit/UIKit.h>
+#endif
 #import <sys/sysctl.h>
 
 #include <sys/types.h>
@@ -59,7 +78,11 @@
 
 -(NSString*) osVersion {
     if (!_osVersion) {
+        #if TARGET_OS_OSX
+        _osVersion = SAFE_ARC_RETAIN([[NSProcessInfo processInfo] operatingSystemVersionString]);
+        #else
         _osVersion = SAFE_ARC_RETAIN([[UIDevice currentDevice] systemVersion]);
+        #endif
     }
     return _osVersion;
 }
@@ -70,7 +93,7 @@
 
 -(NSString*) model {
     if (!_model) {
-        _model = SAFE_ARC_RETAIN([AMPDeviceInfo getPhoneModel]);
+        _model = SAFE_ARC_RETAIN([AMPDeviceInfo getDeviceModel]);
     }
     return _model;
 }
@@ -119,27 +142,35 @@
 
 -(NSString*) advertiserID {
     if (!_disableIdfaTracking && !_advertiserID) {
+#if !TARGET_OS_OSX
         if ([[[UIDevice currentDevice] systemVersion] floatValue] >= (float) 6.0) {
+#endif
             NSString *advertiserId = [AMPDeviceInfo getAdvertiserID:5];
             if (advertiserId != nil &&
                 ![advertiserId isEqualToString:@"00000000-0000-0000-0000-000000000000"]) {
                 _advertiserID = SAFE_ARC_RETAIN(advertiserId);
             }
         }
+#if !TARGET_OS_OSX
     }
+#endif
     return _advertiserID;
 }
 
 -(NSString*) vendorID {
     if (!_vendorID) {
+#if !TARGET_OS_OSX
         if ([[[UIDevice currentDevice] systemVersion] floatValue] >= (float) 6.0) {
+#endif
             NSString *identifierForVendor = [AMPDeviceInfo getVendorID:5];
             if (identifierForVendor != nil &&
                 ![identifierForVendor isEqualToString:@"00000000-0000-0000-0000-000000000000"]) {
                 _vendorID = SAFE_ARC_RETAIN(identifierForVendor);
             }
         }
+#if !TARGET_OS_OSX
     }
+#endif
     return _vendorID;
 }
 
@@ -177,6 +208,9 @@
 
 + (NSString*)getVendorID:(int) maxAttempts
 {
+#if TARGET_OS_OSX
+    return nil;
+#else
     NSString *identifier = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
     if (identifier == nil && maxAttempts > 0) {
         // Try again every 5 seconds
@@ -185,6 +219,7 @@
     } else {
         return identifier;
     }
+#endif
 }
 
 + (NSString*)generateUUID
@@ -196,16 +231,21 @@
 
 + (NSString*)getPlatformString
 {
+#if TARGET_OS_OSX
+    const char *sysctl_name = "hw.model";
+#else
+    const char *sysctl_name = "hw.machine";
+#endif
     size_t size;
-    sysctlbyname("hw.machine", NULL, &size, NULL, 0);
+    sysctlbyname(sysctl_name, NULL, &size, NULL, 0);
     char *machine = malloc(size);
-    sysctlbyname("hw.machine", machine, &size, NULL, 0);
+    sysctlbyname(sysctl_name, machine, &size, NULL, 0);
     NSString *platform = [NSString stringWithUTF8String:machine];
     free(machine);
     return platform;
 }
 
-+ (NSString*)getPhoneModel{
++ (NSString*)getDeviceModel {
     NSString *platform = [self getPlatformString];
     if ([platform isEqualToString:@"iPhone1,1"])    return @"iPhone 1";
     if ([platform isEqualToString:@"iPhone1,2"])    return @"iPhone 3G";
@@ -268,6 +308,14 @@
     if ([platform isEqualToString:@"iPad6,8"])      return @"iPad Pro";
     if ([platform isEqualToString:@"i386"])         return @"Simulator";
     if ([platform isEqualToString:@"x86_64"])       return @"Simulator";
+    if ([platform hasPrefix:@"MacBookAir"])         return @"MacBook Air";
+    if ([platform hasPrefix:@"MacBookPro"])         return @"MacBook Pro";
+    if ([platform hasPrefix:@"MacBook"])            return @"MacBook";
+    if ([platform hasPrefix:@"MacPro"])             return @"Mac Pro";
+    if ([platform hasPrefix:@"Macmini"])            return @"Mac Mini";
+    if ([platform hasPrefix:@"iMac"])               return @"iMac";
+    if ([platform hasPrefix:@"Xserve"])             return @"Xserve";
     return platform;
 }
+
 @end
